@@ -1,0 +1,82 @@
+---
+title: "GLORIA ERA5 溫度與水分平衡"
+output: html_notebook
+---
+# 概述
+本篇分析重點在於利用ERA5既有資料探究水分平衡。利用ERA5自1981-2022年逐月的降雨與潛在蒸散量資料，套用幾項乾旱指標，探究山峰的氣象乾旱情形
+
+## step 0. data direction and package
+
+```{r}
+path <- "H:/我的雲端硬碟/研究室計畫/GLORIA_個人處理/2022/"
+library(SPEI)
+library(data.table)
+library(lubridate) #days in month
+
+```
+## step 1. data loading
+載入各山峰的ERA5資料並做資料處理
+當中，溫度單位為k，必須換算成攝氏(-273.15)。
+降雨量(precipitation)與潛在蒸散量(PE)為月的日平均值，因此必須乘上當月日數才能得到月總量。最後計算水分平衡`D`，為降雨量+潛在蒸散量(負值
+)
+
+```{r}
+folder_name <- list.files(paste0(path,"rawdata/ERA_5_monthly_01degree"))
+rdt <- NULL
+for (i in folder_name){
+  file_name <- list.files(paste0(path,"rawdata/ERA_5_monthly_01degree/",i),
+                          full.names = TRUE)
+  dt <- lapply(file_name,function(x){
+    dt <- fread(x)
+    summit_name <- gsub(paste0(path,"rawdata/ERA_5_monthly_01degree/",i,"/"),
+                        "",x)
+    dt[,reg:=i][,summit:=substr(summit_name,1,3)]
+    return(dt)
+    })
+  dt <- rbindlist(dt)
+  rdt <- rbind(rdt,dt)
+  }
+rm(file_name,folder_name,i,dt)
+colnames(rdt)[1:4] <- c("date","PE","temp","prep")
+Sys.setlocale("LC_TIME", "English")
+rdt[,date:=as.Date(date,format="%B %d, %Y")]
+rdt[,temp:=temp-273.15]
+rdt[,days_in_m:=days_in_month(date)]
+rdt[,PE:=PE*days_in_m][,prep:=prep*days_in_m]
+rdt[,D:=prep+PE]
+```
+
+## step 2.計算spi與spei
+概述：
+SPI與SPEI數值具有不同時間尺度。由於本研究使用之資料為"月"單位資料，因此時間尺度能以1個月、3個月(季)、12個月(年)做分析。不同時間尺度分析即探討不同時間尺度下的乾旱，此一概念類似時間序列中的移動平均，亦即以不同時間尺度下檢視的乾旱。
+
+```{r}
+for (i in unique(rdt$summit)){
+  rdt[summit==i,spei_1:=as.data.table(spei(D,1)$fitted)][
+    summit==i,spei_3:=as.data.table(spei(D,3)$fitted)][
+      summit==i,spei_12:=as.data.table(spei(D,12)$fitted)][
+        summit==i,spi_1:=as.data.table(spi(D,1)$fitted)][
+          summit==i,spi_3:=as.data.table(spi(D,3)$fitted)][
+            summit==i,spi_12:=as.data.table(spi(D,12)$fitted)]
+  }
+```
+## step 3. plot
+
+```{r}
+for(i in c("DAS","SYU","HQM","NAH","SAC")){
+ggplot(rdt[reg==i],aes(x=date,y=D,fill=spei_3))+
+  geom_col()+
+  facet_grid(summit~.)+
+  scale_fill_gradient2(low = "red",
+                       mid = "white",
+                       high = "blue",
+                       midpoint = 0)+
+  scale_x_date(breaks="2 year",date_labels="%Y",
+               limits =c(as.Date("1998-01-01"),
+                         as.Date("2022-01-01")) )
+ggsave(paste0(path,"result/plot/paper/spei_12_NAH.jpeg"),height = 8,width=10,dpi=600)
+}
+```
+
+
+
