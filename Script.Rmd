@@ -46,10 +46,11 @@ rdt[,PE:=PE*days_in_m][,prep:=prep*days_in_m]
 rdt[,D:=prep+PE]
 ```
 
-## step 2.計算spi與spei
+## step 2.計算spi、spei並載入ENSO指數
 概述：
 SPI與SPEI數值具有不同時間尺度。由於本研究使用之資料為"月"單位資料，因此時間尺度能以1個月、3個月(季)、12個月(年)做分析。不同時間尺度分析即探討不同時間尺度下的乾旱，此一概念類似時間序列中的移動平均，亦即以不同時間尺度下檢視的乾旱。
-
+載入NOAA的聖嬰現象指數，比較乾旱期與聖嬰現象之時序。
+初步結果顯示
 ```{r}
 for (i in unique(rdt$summit)){
   rdt[summit==i,spei_1:=as.data.table(spei(D,1)$fitted)][
@@ -58,24 +59,43 @@ for (i in unique(rdt$summit)){
         summit==i,spi_1:=as.data.table(spi(D,1)$fitted)][
           summit==i,spi_3:=as.data.table(spi(D,3)$fitted)][
             summit==i,spi_12:=as.data.table(spi(D,12)$fitted)]
-  }
-```
-## step 3. plot
+}
 
+enso <- fread(paste0(path,"rawdata/ERA_5_monthly_01degree/enso_ind.csv"))
+enso <- melt(enso,id.vars="Year",
+             value.name = "ind",
+             variable.name = "month")
+enso <- enso[order(Year,month)]
+enso[,date:=as.Date(paste(Year,month,1,sep="-"))]
+rdt <- enso[rdt,on=.(date=date)]
+write.csv(rdt,paste0(path,"result/1980_2021_SPEI_index.csv"))
+```
+## step 3. 初步作圖
+概述:將SPEI結果初步作圖，探究調查期間SPEI變化。並嘗試以不同時間尺度與氣候變數作圖，檢視何種數值與表現方法較能表達研究成果。
+初步檢視後，我認為單純以SPEI3(季)與SPEI12(年)呈現乾旱季與年度變化，會更直觀的呈現乾旱狀態。同時加入ENSO指標，檢視在聖嬰現象下乾旱事件發生的次數。
 ```{r}
 for(i in c("DAS","SYU","HQM","NAH","SAC")){
-ggplot(rdt[reg==i],aes(x=date,y=D,fill=spei_3))+
-  geom_col()+
-  facet_grid(summit~.)+
-  scale_fill_gradient2(low = "red",
-                       mid = "white",
-                       high = "blue",
-                       midpoint = 0)+
-  scale_x_date(breaks="2 year",date_labels="%Y",
-               limits =c(as.Date("1998-01-01"),
-                         as.Date("2022-01-01")) )
-ggsave(paste0(path,"result/plot/paper/spei_12_NAH.jpeg"),height = 8,width=10,dpi=600)
+  for (j in c(3,12)){
+  p <- ggplot(rdt[reg==i],aes(x=date,
+                              y=get(paste0("spei_",j)),
+                              fill=get(paste0("spei_",j))))+
+    geom_col()+
+    facet_grid(summit~.)+
+    scale_fill_gradient2(low = "red",
+                         mid = "white",
+                         high = "blue",
+                         midpoint = 0)+
+    scale_x_date(breaks="2 year",date_labels="%Y",
+                 limits =c(as.Date("2003-01-01"),
+                           as.Date("2022-01-01")))+
+    labs(x="Year",y=paste0(j,"-month SPEI"),
+         fill=paste0('SPEI ',j),title = i)
+  ggsave(paste0(path,"result/plot/paper/spei_",j,"_",i,".jpeg"),
+         plot=p,height = 8,width=10,dpi=600)
+  }
 }
+
+
 ```
 
 
