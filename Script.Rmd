@@ -8,7 +8,7 @@ output: html_notebook
 ## step 0. data direction and package
 
 ```{r}
-path <- "H:/我的雲端硬碟/研究室計畫/GLORIA_個人處理/2022/"
+path <- "H:/我的雲端硬碟/研究室計畫/GLORIA_個人處理/paper_準備/Paper_3_GLORIA_ALL_SUMMIT/"
 library(SPEI)
 library(data.table)
 library(lubridate) #days in month
