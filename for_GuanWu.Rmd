@@ -1,0 +1,68 @@
+---
+title: "觀霧資料作圖"
+output: html_notebook
+---
+
+## step 0. data direction and package
+
+```{r}
+dir.create("plot")
+library(SPEI)
+library(data.table)
+library(lubridate) #days in month
+library(ggpmisc)
+```
+
+```{r}
+rdt <- fread("GuanWu.csv")
+colnames(rdt)[1:4] <- c("date","PE","temp","prep")
+Sys.setlocale("LC_TIME", "English")
+rdt[,date:=as.Date(date,format="%B %d, %Y")]
+rdt[,temp:=temp-273.15]
+rdt[,days_in_m:=days_in_month(date)]
+rdt[,PE:=PE*days_in_m][,prep:=prep*days_in_m]
+rdt[,D:=prep+PE]
+rdt[,month:=month(date)][,year:=year(date)]
+rdt_y <- rdt[,.(temp=mean(temp),prep=sum(prep)),by=.(year)]
+rdt[,spei_12:=as.data.table(spei(D,12)$fitted)]
+#####繪製溫度變化圖
+ggplot(rdt_y[year %in% 1981:2022],aes(x=year,y=temp))+
+  geom_point(color="black")+
+  geom_line(linetype="dashed",size=0.6)+
+  theme_bw()+
+  geom_smooth(method="lm",color="steelblue3")+
+  labs(x="Year",y="Annual mean temperature (°C)")+
+  theme(legend.position="none")+
+  stat_poly_eq(formula = y~x,aes(label = paste(..eq.label.., ..rr.label..,
+                                               ..p.value.label.., 
+                                               sep = "~~~")), 
+               label.x.npc = "right", label.y.npc = "bottom", na.rm=TRUE,
+               parse = TRUE, size = 3,color="black")
+  
+
+ggsave(paste0("plot/For_GuanWu_temp.jpeg"),width=8,height = 4,dpi=600)
+
+ggplot(rdt_y[year!=2023],aes(x=year))+
+  geom_col(aes(y=prep),fill="steelblue2",width = 0.6)+
+  labs(x='Year',y='Precipitation (mm)')+
+  theme_classic()+
+  scale_x_continuous(breaks = seq(1981,2022,5))+
+  ylim(0,3500)
+ggsave(paste0("plot/For_GuanWu_prep.jpeg"),width=8,height = 4,dpi=600)
+
+ggplot(rdt,aes(x=date,y=spei_12,fill=spei_12))+
+    geom_col()+
+    scale_fill_gradient2(low = "#E14B32",
+                         mid = "gray90",
+                         high = "#2B84C3",
+                         midpoint = 0)+
+    scale_x_date(breaks="5 year",date_labels="%Y",
+                 limits =c(as.Date("1982-01-01"),
+                           as.Date("2022-07-01")))+
+    scale_color_brewer(palette="Dark2",na.translate = F)+
+    labs(x="Year",y=paste0("12-month SPEI"),
+         fill="SPEI-12",color="Survey")+
+    theme_bw()
+ggsave(paste0("plot/SPEI_12.jpeg"),width=8,height = 4,dpi=600)
+```
+
